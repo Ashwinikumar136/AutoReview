@@ -572,6 +572,15 @@ app.get('/api/network-info', (req, res) => {
   });
 });
 
+// --- Lightweight Health-Check & Keep-Alive Endpoint ---
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // --- Default redirect to admin ---
 app.get('/', (req, res) => {
   res.redirect('/admin');
