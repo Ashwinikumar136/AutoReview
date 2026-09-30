@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoReview — Admin Setup</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+        <button id="logout-btn" class="btn btn-outline btn-sm" style="display: none; width: auto;" title="Sign out of admin">🚪 Log Out</button>
+      </div>
+      <div class="logo">⚙️</div>
+      <h1>AutoReview Admin</h1>
+      <p>Manage your shops and generate QR codes</p>
+    </div>
+
+    <!-- Admin Login Card -->
+    <div class="card" id="login-card">
+      <div class="card-title">
+        <span class="icon">🔒</span> Admin Login
+      </div>
+      <p class="text-muted mb-4">Please enter your admin password to access shop management.</p>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label for="admin-password">Password</label>
+          <input type="password" id="admin-password" placeholder="Enter admin password" required autocomplete="current-password">
+        </div>
+        <div id="login-error" style="color: var(--danger); font-size: 14px; margin-bottom: 12px; display: none;"></div>
+        <button type="submit" class="btn btn-primary" id="login-btn">
+          🔐 Log In
+        </button>
+      </form>
+    </div>
+
+    <!-- Admin Dashboard (Protected - Hidden until logged in) -->
+    <div id="dashboard-content" style="display: none;">
+
+    <!-- Shop Setup Form -->
+    <div class="card" id="setup-card">
+      <div id="phone-banner" style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 20px; font-size: 13px; line-height: 1.5; color: #1e40af; display: none;">
+        📱 <strong>Testing on your phone:</strong> Connect phone to the same Wi-Fi, then scan the generated QR code or open: <code id="phone-link" style="background: #dbeafe; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #1e3a8a;"></code>
+      </div>
+
+      <div class="card-title">
+        <span class="icon">🏪</span> Shop Details
+      </div>
+
+      <form id="shop-form">
+        <div class="form-group">
+          <label for="shop-name">Shop Name *</label>
+          <input type="text" id="shop-name" placeholder="e.g. Sharma Electronics" required>
+        </div>
+
+        <div class="form-group">
+          <label for="google-maps-url">Google Maps / Review Link *</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="url" id="google-maps-url" placeholder="Paste Google Maps or Review link" style="flex: 1;">
+            <button type="button" class="btn btn-outline btn-sm" id="test-link-btn" style="white-space: nowrap;" title="Test what customer sees">🔗 Test Link</button>
+          </div>
+          <div id="link-status" style="font-size: 13px; margin-top: 6px; display: none;"></div>
+          <p class="hint" style="margin-top: 6px; line-height: 1.5;">
+            💡 <strong>Two ways to link:</strong><br>
+            • <strong>Instant Review Pop-up (0 clicks):</strong> In Google Business Profile / Maps, tap <em>"Ask for reviews"</em> & paste that link (e.g. <code>g.page/r/.../review</code>) or enter your Place ID below.<br>
+            • <strong>Shop Location Page:</strong> Click <em>"Share"</em> on your shop's Google Maps page and paste (e.g. <code>maps.app.goo.gl/...</code>). Customers will tap <em>"Rate and review"</em>.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="place-id">Google Maps Place ID (optional — for direct pop-up)</label>
+          <input type="text" id="place-id" placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4">
+          <p class="hint">
+            Must start with "ChIJ..." — 
+            <a href="https://developers.google.com/maps/documentation/places/web-service/place-id-finder" target="_blank" style="color: var(--primary-dark);">
+              Find your Place ID using Google Finder ↗
+            </a>
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="category">Shop Category</label>
+          <select id="category">
+            <option value="General Store">General Store</option>
+            <option value="Restaurant">Restaurant</option>
+            <option value="Cafe">Cafe</option>
+            <option value="Salon / Spa">Salon / Spa</option>
+            <option value="Electronics Store">Electronics Store</option>
+            <option value="Clothing Store">Clothing Store</option>
+            <option value="Grocery Store">Grocery Store</option>
+            <option value="Medical / Pharmacy">Medical / Pharmacy</option>
+            <option value="Hardware Store">Hardware Store</option>
+            <option value="Bakery">Bakery</option>
+            <option value="Gym / Fitness">Gym / Fitness</option>
+            <option value="Auto / Mechanic">Auto / Mechanic</option>
+            <option value="Hotel / Lodge">Hotel / Lodge</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="language">Review Language</label>
+          <select id="language">
+            <option value="English">English</option>
+            <option value="Hindi">Hindi</option>
+            <option value="Hinglish (Hindi + English mix)">Hinglish</option>
+            <option value="Tamil">Tamil</option>
+            <option value="Telugu">Telugu</option>
+            <option value="Marathi">Marathi</option>
+            <option value="Bengali">Bengali</option>
+            <option value="Gujarati">Gujarati</option>
+            <option value="Kannada">Kannada</option>
+            <option value="Punjabi">Punjabi</option>
+            <option value="Urdu">Urdu</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="description">Short Description (optional)</label>
+          <textarea id="description" rows="2" placeholder="e.g. Family-run electronics shop known for good prices and helpful staff"></textarea>
+          <p class="hint">Helps AI write more relevant reviews</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="save-btn">
+          💾 Save & Generate QR Code
+        </button>
+      </form>
+    </div>
+
+    <!-- QR Code Result -->
+    <div class="card hidden" id="qr-card">
+      <div class="card-title">
+        <span class="icon">📱</span> QR Code Ready!
+      </div>
+
+      <div class="qr-section">
+        <div class="qr-code-container" id="qr-container"></div>
+
+        <p class="text-muted mb-2">Customers scan this to write a review</p>
+
+        <div class="review-link">
+          <code id="review-url"></code>
+          <button class="btn btn-outline btn-sm" id="copy-link-btn" title="Copy link">📋</button>
+        </div>
+
+        <div class="btn-group mt-4">
+          <button class="btn btn-outline" id="download-qr-btn">⬇️ Download QR</button>
+          <button class="btn btn-outline" id="print-qr-btn">🖨️ Print</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saved Shops -->
+    <div class="card" id="shops-card">
+      <div class="card-title">
+        <span class="icon">📋</span> Your Shops
+      </div>
+      <ul class="shop-list" id="shop-list">
+        <li class="text-muted text-center" id="no-shops">No shops added yet</li>
+      </ul>
+    </div>
+
+    </div> <!-- End of #dashboard-content -->
+
+  </div> <!-- End of .container -->
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- QR Code Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Write a Review</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header (dynamic shop name) -->
+    <div class="header" id="review-header">
+      <div class="logo">⭐</div>
+      <h1 id="shop-title">Loading...</h1>
+      <p>We'd love to hear about your experience!</p>
+    </div>
+
+    <!-- Step Dots -->
+    <div class="steps" id="step-dots">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-dot" data-step="3"></div>
+    </div>
+
+    <!-- ========== STEP 1: Rating ========== -->
+    <div class="card step-card" id="step-1">
+      <div class="card-title">
+        <span class="icon">😊</span> How was your experience?
+      </div>
+
+      <div class="star-rating" id="star-rating">
+        <span class="star" data-value="1">⭐</span>
+        <span class="star" data-value="2">⭐</span>
+        <span class="star" data-value="3">⭐</span>
+        <span class="star" data-value="4">⭐</span>
+        <span class="star" data-value="5">⭐</span>
+      </div>
+
+      <div class="rating-label" id="rating-label"></div>
+
+      <button class="btn btn-primary" id="step1-next" disabled>
+        Next →
+      </button>
+    </div>
+
+    <!-- ========== STEP 2: Tags + Comments ========== -->
+    <div class="card step-card hidden" id="step-2">
+      <div class="card-title">
+        <span class="icon">👍</span> What did you like?
+      </div>
+      <p class="text-muted mb-4">Tap all that apply</p>
+
+      <div class="tags-container" id="tags-container">
+        <!-- Tags populated by JS based on category -->
+      </div>
+
+      <hr class="divider">
+
+      <div class="form-group">
+        <label for="comments">Anything else you'd like to mention?</label>
+        <div class="input-with-voice">
+          <textarea id="comments" rows="3" placeholder="Optional — type or use voice 🎤"></textarea>
+          <button class="voice-btn" id="voice-btn" title="Tap to speak">🎤</button>
+        </div>
+        <p class="hint">Don't worry about grammar — AI will help polish it!</p>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-outline" id="step2-back">← Back</button>
+        <button class="btn btn-primary" id="step2-next">Generate Review ✨</button>
+      </div>
+    </div>
+
+    <!-- ========== STEP 3: Review Preview ========== -->
+    <div class="card step-card hidden" id="step-3">
+      <div class="card-title">
+        <span class="icon">📝</span> Your Review
+      </div>
+      <p class="text-muted mb-4">You can edit this before posting</p>
+
+      <div class="review-preview" id="review-text" contenteditable="true">
+        <span class="placeholder">Generating your review...</span>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-outline" id="regenerate-btn">🔄 Regenerate</button>
+      </div>
+
+      <hr class="divider">
+
+      <button class="btn btn-success" id="post-google-btn">
+        📋 Copy & Open Google Reviews
+      </button>
+      <p class="text-muted text-center mt-2">
+        This will copy your review and open Google Maps so you can paste & submit it
+      </p>
+    </div>
+
+    <!-- ========== SUCCESS ========== -->
+    <div class="card step-card hidden" id="step-success">
+      <div class="success-screen">
+        <div class="success-icon">🎉</div>
+        <h2>Review Copied!</h2>
+        <div id="success-instructions" style="background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 16px; margin: 16px 0; text-align: left; line-height: 1.6; font-size: 14px;">
+          Google Maps is opening. Paste your review and submit!
+        </div>
+        <button class="btn btn-outline" id="write-another-btn">Write Another Review</button>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div class="card hidden" id="error-card">
+      <div class="text-center" style="padding: 24px;">
+        <div style="font-size: 48px; margin-bottom: 12px;">😕</div>
+        <h2>Shop Not Found</h2>
+        <p class="text-muted">This review link might be invalid or expired.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/review.js"></script>
+</body>
+</html>
