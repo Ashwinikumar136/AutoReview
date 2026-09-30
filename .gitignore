@@ -12,6 +12,7 @@ yarn-error.log*
 # Runtime Data
 data/*.json
 !data/.gitkeep
+!data/seed_shops.json
 
 # Logs & Temporary files
 *.log

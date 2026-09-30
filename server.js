@@ -14,24 +14,162 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- Data Store (JSON file) ---
+// --- Data Store (Dual-Engine: MongoDB Atlas + Local JSON Fallback) ---
 const DATA_DIR = path.join(__dirname, 'data');
 const SHOPS_FILE = path.join(DATA_DIR, 'shops.json');
+const SEED_FILE = path.join(DATA_DIR, 'seed_shops.json');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
-if (!fs.existsSync(SHOPS_FILE)) {
-  fs.writeFileSync(SHOPS_FILE, JSON.stringify([], null, 2));
+
+function getSeedShops() {
+  if (fs.existsSync(SEED_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(SEED_FILE, 'utf-8'));
+      if (Array.isArray(data) && data.length > 0) return data;
+    } catch (e) {
+      console.warn('Could not read seed_shops.json:', e.message);
+    }
+  }
+  return [];
 }
 
-function readShops() {
-  return JSON.parse(fs.readFileSync(SHOPS_FILE, 'utf-8'));
+let mongoClient = null;
+let shopsCollection = null;
+let storageMode = 'local'; // 'mongodb' | 'local'
+
+async function initStorage() {
+  const mongoUri = process.env.MONGODB_URI;
+  if (mongoUri && mongoUri.startsWith('mongodb')) {
+    try {
+      console.log('Connecting to MongoDB Atlas...');
+      const { MongoClient } = require('mongodb');
+      mongoClient = new MongoClient(mongoUri);
+      await mongoClient.connect();
+      const db = mongoClient.db(process.env.MONGODB_DB_NAME || 'autoreview');
+      shopsCollection = db.collection('shops');
+      storageMode = 'mongodb';
+      console.log('✅ Connected to MongoDB Atlas Cloud Database.');
+
+      // Check if MongoDB collection is empty; if so, auto-seed
+      const count = await shopsCollection.countDocuments();
+      if (count === 0) {
+        let initialData = [];
+        if (fs.existsSync(SHOPS_FILE)) {
+          try {
+            initialData = JSON.parse(fs.readFileSync(SHOPS_FILE, 'utf-8'));
+          } catch (_) {}
+        }
+        if (!initialData.length) {
+          initialData = getSeedShops();
+        }
+        if (initialData.length > 0) {
+          console.log(`Seeding MongoDB with ${initialData.length} shop(s)...`);
+          await shopsCollection.insertMany(initialData);
+        }
+      }
+      return;
+    } catch (err) {
+      console.error('⚠️ Failed to connect to MongoDB Atlas:', err.message);
+      console.log('Falling back to local JSON storage...');
+      storageMode = 'local';
+    }
+  }
+
+  // Local JSON setup
+  storageMode = 'local';
+  if (!fs.existsSync(SHOPS_FILE)) {
+    const seeds = getSeedShops();
+    fs.writeFileSync(SHOPS_FILE, JSON.stringify(seeds, null, 2));
+    console.log(`Initialized local shops.json with ${seeds.length} seed shop(s).`);
+  } else {
+    // If shops.json exists but is empty array, seed it
+    try {
+      const existing = JSON.parse(fs.readFileSync(SHOPS_FILE, 'utf-8'));
+      if (!Array.isArray(existing) || existing.length === 0) {
+        const seeds = getSeedShops();
+        fs.writeFileSync(SHOPS_FILE, JSON.stringify(seeds, null, 2));
+      }
+    } catch (_) {}
+  }
+  console.log(`📁 Using local storage: ${SHOPS_FILE}`);
 }
 
-function writeShops(shops) {
-  fs.writeFileSync(SHOPS_FILE, JSON.stringify(shops, null, 2));
-}
+const shopStore = {
+  getStorageMode: () => storageMode,
+
+  async getAll() {
+    if (storageMode === 'mongodb' && shopsCollection) {
+      return await shopsCollection.find({}, { projection: { _id: 0 } }).toArray();
+    }
+    if (!fs.existsSync(SHOPS_FILE)) return [];
+    try {
+      return JSON.parse(fs.readFileSync(SHOPS_FILE, 'utf-8'));
+    } catch (_) {
+      return [];
+    }
+  },
+
+  async getById(id) {
+    if (storageMode === 'mongodb' && shopsCollection) {
+      return await shopsCollection.findOne({ id }, { projection: { _id: 0 } });
+    }
+    const shops = await this.getAll();
+    return shops.find(s => s.id === id) || null;
+  },
+
+  async save(shop) {
+    if (storageMode === 'mongodb' && shopsCollection) {
+      await shopsCollection.updateOne(
+        { id: shop.id },
+        { $set: shop },
+        { upsert: true }
+      );
+      return shop;
+    }
+    const shops = await this.getAll();
+    const idx = shops.findIndex(s => s.id === shop.id);
+    if (idx !== -1) {
+      shops[idx] = shop;
+    } else {
+      shops.push(shop);
+    }
+    fs.writeFileSync(SHOPS_FILE, JSON.stringify(shops, null, 2));
+    return shop;
+  },
+
+  async delete(id) {
+    if (storageMode === 'mongodb' && shopsCollection) {
+      const result = await shopsCollection.deleteOne({ id });
+      return result.deletedCount > 0;
+    }
+    const shops = await this.getAll();
+    const filtered = shops.filter(s => s.id !== id);
+    if (filtered.length !== shops.length) {
+      fs.writeFileSync(SHOPS_FILE, JSON.stringify(filtered, null, 2));
+      return true;
+    }
+    return false;
+  },
+
+  async importAll(newShops) {
+    if (!Array.isArray(newShops)) throw new Error('Data must be an array of shops');
+    if (storageMode === 'mongodb' && shopsCollection) {
+      await shopsCollection.deleteMany({});
+      if (newShops.length > 0) {
+        const sanitized = newShops.map(s => {
+          const { _id, ...rest } = s;
+          return rest;
+        });
+        await shopsCollection.insertMany(sanitized);
+      }
+      return newShops;
+    }
+    fs.writeFileSync(SHOPS_FILE, JSON.stringify(newShops, null, 2));
+    return newShops;
+  }
+};
 
 // --- Gemini AI Setup ---
 let genAI = null;
@@ -128,8 +266,50 @@ app.post('/api/admin/logout', (req, res) => {
 //        API ROUTES
 // ==========================
 
+// --- Storage & Admin Status ---
+app.get('/api/admin/status', authMiddleware, async (req, res) => {
+  try {
+    const shops = await shopStore.getAll();
+    res.json({
+      storageMode: shopStore.getStorageMode(),
+      totalShops: shops.length,
+      hasGemini: !!genAI,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+// --- Export Shops Backup (JSON file download) ---
+app.get('/api/admin/export', authMiddleware, async (req, res) => {
+  try {
+    const shops = await shopStore.getAll();
+    const dateStr = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="autoreview-backup-${dateStr}.json"`);
+    res.send(JSON.stringify(shops, null, 2));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to export backup' });
+  }
+});
+
+// --- Import Shops Backup (JSON restore) ---
+app.post('/api/admin/import', authMiddleware, async (req, res) => {
+  try {
+    const { shops } = req.body;
+    if (!Array.isArray(shops)) {
+      return res.status(400).json({ error: 'Payload must contain a "shops" array' });
+    }
+    await shopStore.importAll(shops);
+    res.json({ success: true, count: shops.length });
+  } catch (err) {
+    console.error('Import error:', err);
+    res.status(500).json({ error: 'Failed to import shops: ' + err.message });
+  }
+});
+
 // --- Create or Update a shop (Admin Only) ---
-app.post('/api/shops', authMiddleware, (req, res) => {
+app.post('/api/shops', authMiddleware, async (req, res) => {
   try {
     const { id, name, googleMapsUrl, placeId, category, language, description } = req.body;
 
@@ -137,7 +317,7 @@ app.post('/api/shops', authMiddleware, (req, res) => {
       return res.status(400).json({ error: 'Shop name is required' });
     }
 
-    const shops = readShops();
+    const shops = await shopStore.getAll();
 
     // Check if shop already exists:
     // 1) Explicit id passed
@@ -160,7 +340,7 @@ app.post('/api/shops', authMiddleware, (req, res) => {
 
     if (existingIndex !== -1) {
       // Update existing shop — preserve the exact same ID so QR code never changes!
-      shops[existingIndex] = {
+      const updatedShop = {
         ...shops[existingIndex],
         name,
         googleMapsUrl: googleMapsUrl || shops[existingIndex].googleMapsUrl,
@@ -170,8 +350,8 @@ app.post('/api/shops', authMiddleware, (req, res) => {
         description: description ?? shops[existingIndex].description,
         updatedAt: new Date().toISOString(),
       };
-      writeShops(shops);
-      return res.status(200).json(shops[existingIndex]);
+      await shopStore.save(updatedShop);
+      return res.status(200).json(updatedShop);
     }
 
     // New shop
@@ -186,9 +366,7 @@ app.post('/api/shops', authMiddleware, (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
-    shops.push(shop);
-    writeShops(shops);
-
+    await shopStore.save(shop);
     res.status(201).json(shop);
   } catch (err) {
     console.error('Error creating shop:', err);
@@ -197,9 +375,9 @@ app.post('/api/shops', authMiddleware, (req, res) => {
 });
 
 // --- Get all shops (Admin Only) ---
-app.get('/api/shops', authMiddleware, (req, res) => {
+app.get('/api/shops', authMiddleware, async (req, res) => {
   try {
-    const shops = readShops();
+    const shops = await shopStore.getAll();
     res.json(shops);
   } catch (err) {
     res.status(500).json({ error: 'Failed to read shops' });
@@ -207,10 +385,9 @@ app.get('/api/shops', authMiddleware, (req, res) => {
 });
 
 // --- Get a single shop (Public - Used by Customer Review Page) ---
-app.get('/api/shops/:id', (req, res) => {
+app.get('/api/shops/:id', async (req, res) => {
   try {
-    const shops = readShops();
-    const shop = shops.find(s => s.id === req.params.id);
+    const shop = await shopStore.getById(req.params.id);
     if (!shop) {
       return res.status(404).json({ error: 'Shop not found' });
     }
@@ -221,42 +398,39 @@ app.get('/api/shops/:id', (req, res) => {
 });
 
 // --- Update a shop (Admin Only) ---
-app.put('/api/shops/:id', authMiddleware, (req, res) => {
+app.put('/api/shops/:id', authMiddleware, async (req, res) => {
   try {
-    const shops = readShops();
-    const index = shops.findIndex(s => s.id === req.params.id);
-    if (index === -1) {
+    const shop = await shopStore.getById(req.params.id);
+    if (!shop) {
       return res.status(404).json({ error: 'Shop not found' });
     }
 
     const { name, googleMapsUrl, placeId, category, language, description } = req.body;
-    shops[index] = {
-      ...shops[index],
-      name: name || shops[index].name,
-      googleMapsUrl: googleMapsUrl ?? shops[index].googleMapsUrl,
-      placeId: placeId ?? shops[index].placeId,
-      category: category || shops[index].category,
-      language: language || shops[index].language,
-      description: description ?? shops[index].description,
+    const updated = {
+      ...shop,
+      name: name || shop.name,
+      googleMapsUrl: googleMapsUrl ?? shop.googleMapsUrl,
+      placeId: placeId ?? shop.placeId,
+      category: category || shop.category,
+      language: language || shop.language,
+      description: description ?? shop.description,
+      updatedAt: new Date().toISOString(),
     };
 
-    writeShops(shops);
-    res.json(shops[index]);
+    await shopStore.save(updated);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update shop' });
   }
 });
 
 // --- Delete a shop (Admin Only) ---
-app.delete('/api/shops/:id', authMiddleware, (req, res) => {
+app.delete('/api/shops/:id', authMiddleware, async (req, res) => {
   try {
-    let shops = readShops();
-    const index = shops.findIndex(s => s.id === req.params.id);
-    if (index === -1) {
+    const deleted = await shopStore.delete(req.params.id);
+    if (!deleted) {
       return res.status(404).json({ error: 'Shop not found' });
     }
-    shops.splice(index, 1);
-    writeShops(shops);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete shop' });
@@ -404,13 +578,19 @@ app.get('/', (req, res) => {
 });
 
 // --- Start Server ---
-app.listen(PORT, () => {
-  const localIp = getLocalIp();
-  console.log(`\n🚀 AutoReview server running:`);
-  console.log(`   💻 Computer: http://localhost:${PORT}/admin`);
-  console.log(`   📱 Phone:    http://${localIp}:${PORT}/admin\n`);
+async function startServer() {
+  await initStorage();
 
-  if (!genAI) {
-    console.log('   ⚠️  Gemini API key not set! Add it to your .env file.\n');
-  }
-});
+  app.listen(PORT, () => {
+    const localIp = getLocalIp();
+    console.log(`\n🚀 AutoReview server running [Storage: ${shopStore.getStorageMode()}]:`);
+    console.log(`   💻 Computer: http://localhost:${PORT}/admin`);
+    console.log(`   📱 Phone:    http://${localIp}:${PORT}/admin\n`);
+
+    if (!genAI) {
+      console.log('   ⚠️  Gemini API key not set! Add it to your .env file.\n');
+    }
+  });
+}
+
+startServer();

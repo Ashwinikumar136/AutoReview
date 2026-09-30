@@ -11,6 +11,10 @@ const loginError = document.getElementById('login-error');
 const adminPasswordInput = document.getElementById('admin-password');
 const loginBtn = document.getElementById('login-btn');
 const logoutBtn = document.getElementById('logout-btn');
+const storageBadge = document.getElementById('storage-badge');
+const exportBtn = document.getElementById('export-btn');
+const importBtn = document.getElementById('import-btn');
+const restoreFileInput = document.getElementById('restore-file-input');
 const dashboardContent = document.getElementById('dashboard-content');
 
 const shopForm = document.getElementById('shop-form');
@@ -67,6 +71,9 @@ function showLogin() {
   loginCard.style.display = 'block';
   dashboardContent.style.display = 'none';
   logoutBtn.style.display = 'none';
+  if (exportBtn) exportBtn.style.display = 'none';
+  if (importBtn) importBtn.style.display = 'none';
+  if (storageBadge) storageBadge.style.display = 'none';
   adminPasswordInput.value = '';
   loginError.style.display = 'none';
 }
@@ -75,6 +82,97 @@ function showDashboard() {
   loginCard.style.display = 'none';
   dashboardContent.style.display = 'block';
   logoutBtn.style.display = 'inline-block';
+  if (exportBtn) exportBtn.style.display = 'inline-block';
+  if (importBtn) importBtn.style.display = 'inline-block';
+  updateStorageBadge();
+}
+
+async function updateStorageBadge() {
+  if (!storageBadge) return;
+  try {
+    const res = await authFetch('/api/admin/status');
+    if (res.ok) {
+      const data = await res.json();
+      storageBadge.style.display = 'inline-block';
+      if (data.storageMode === 'mongodb') {
+        storageBadge.innerHTML = '☁️ <strong>Cloud DB:</strong> MongoDB Atlas (Permanent)';
+        storageBadge.style.background = '#dcfce7';
+        storageBadge.style.color = '#15803d';
+        storageBadge.style.borderColor = '#86efac';
+      } else {
+        storageBadge.innerHTML = '📁 <strong>Storage:</strong> Local JSON';
+        storageBadge.style.background = '#f1f5f9';
+        storageBadge.style.color = '#475569';
+        storageBadge.style.borderColor = '#cbd5e1';
+      }
+    }
+  } catch (_) {}
+}
+
+// --- Backup & Restore Handlers ---
+if (exportBtn) {
+  exportBtn.addEventListener('click', async () => {
+    try {
+      showToast('Preparing backup...');
+      const res = await authFetch('/api/admin/export');
+      if (!res.ok) throw new Error('Failed to export backup');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().split('T')[0];
+      a.download = `autoreview-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('✅ Backup downloaded successfully!');
+    } catch (err) {
+      showToast('❌ Export failed: ' + err.message);
+    }
+  });
+}
+
+if (importBtn && restoreFileInput) {
+  importBtn.addEventListener('click', () => {
+    restoreFileInput.value = '';
+    restoreFileInput.click();
+  });
+
+  restoreFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!confirm(`Restore shops from "${file.name}"? This will update the shop database.`)) {
+      return;
+    }
+
+    try {
+      showToast('Restoring backup...');
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const shopsArray = Array.isArray(parsed) ? parsed : (parsed.shops || null);
+
+      if (!Array.isArray(shopsArray)) {
+        throw new Error('File does not contain a valid array of shops');
+      }
+
+      const res = await authFetch('/api/admin/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shops: shopsArray }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+
+      showToast(`✅ Successfully restored ${data.count} shop(s)!`);
+      await loadShops();
+      await updateStorageBadge();
+    } catch (err) {
+      showToast('❌ Restore failed: ' + err.message);
+    }
+  });
 }
 
 // --- Login Form Handler ---

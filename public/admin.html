@@ -11,8 +11,16 @@
 
     <!-- Header -->
     <div class="header">
-      <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
-        <button id="logout-btn" class="btn btn-outline btn-sm" style="display: none; width: auto;" title="Sign out of admin">🚪 Log Out</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+        <span id="storage-badge" style="display: none; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;">
+          ⏳ Checking Storage...
+        </span>
+        <div style="display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap;">
+          <button id="export-btn" class="btn btn-outline btn-sm" style="display: none; width: auto;" title="Download full JSON backup of all shops">💾 Export Backup</button>
+          <button id="import-btn" class="btn btn-outline btn-sm" style="display: none; width: auto;" title="Restore shops from a JSON backup file">📥 Restore</button>
+          <input type="file" id="restore-file-input" accept=".json" style="display: none;">
+          <button id="logout-btn" class="btn btn-outline btn-sm" style="display: none; width: auto;" title="Sign out of admin">🚪 Log Out</button>
+        </div>
       </div>
       <div class="logo">⚙️</div>
       <h1>AutoReview Admin</h1>

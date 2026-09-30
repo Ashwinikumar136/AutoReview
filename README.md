@@ -51,6 +51,7 @@ Open `.env` and fill in your credentials:
 GEMINI_API_KEY=your_gemini_api_key_here
 PORT=3000
 ADMIN_PASSWORD=your_secure_admin_password
+MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/?appName=AutoReview (Optional, for 100% cloud persistence)
 ```
 > Get a free Gemini API key at [Google AI Studio](https://aistudio.google.com/).
 
@@ -78,9 +79,10 @@ When testing on a mobile device on the same local Wi-Fi:
 AutoReview can be deployed on any Node.js hosting platform (such as [Render](https://render.com), [Railway](https://railway.app), or a VPS):
 
 1. Set your environment variables on your hosting dashboard:
-   - `GEMINI_API_KEY`
-   - `ADMIN_PASSWORD`
-   - `PORT` (usually set automatically by the platform)
+   - `GEMINI_API_KEY`: Your Google Gemini API key
+   - `ADMIN_PASSWORD`: Your admin panel password
+   - `MONGODB_URI`: (Recommended for Render) Your MongoDB Atlas connection string so all new shops persist across redeployments
+   - `PORT`: (Set automatically by Render)
 2. Build / Start command:
    - Build: `npm install`
    - Start: `node server.js`
